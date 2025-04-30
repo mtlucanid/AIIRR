@@ -1,0 +1,344 @@
+/////////////////////////////////////////////////////////////
+// AIIRR.txt (for Natsumushi 2.0)
+//
+//   10 Feb 2025, Masahiko Tanahashi
+//
+//  https://sites.google.com/site/mtahashilucanid/program/natsumushi/AIIRR
+//
+// ==========================================================
+// (Original Publication)
+//
+//    Area Integrity Index with Random Rearrangement (AIIRR): 
+//      A new concept for quantifying disruptive colorations
+//
+//   Masahiko Tanahashi*, Min-Chen Lin, Chung-Ping Lin
+//          
+//       (Methods in Ecology and Evolutuon, in press)
+//
+//   *Contact: m.tanahashi.lucanid@gmail.com
+// ==========================================================
+//
+// History
+//   10 Feb 2025 : Modify parameters/return values of AIIRRCore module
+//   30 Sep 2024 : Rename 'Sigma' to 'Shake amplitude' to avoid confusion
+//   17 Feb 2024 : Renamed the module as 'AIIRR' and uploaded to the AIIRR website
+//    4 Feb 2024 : Change the way to specify Sigma and Gaussian params
+//   19 Jun 2023 : Add comments 
+//   20 Apr 2023 : Modified for the improved x(nc) function
+//    9 Jun 2021 : First version 
+//
+// Usage
+//  * Open any shape in the target folder.
+//  * Be sure that the corresponding image files exist in the same folder.
+//  * Run this macro.
+//
+// Behavior
+//  * Create a log file folder (results) where the current macro file exists.
+//  * Output images and two log files in that folder. 
+//   - aiirr_n.txt    : Number of regions at each iteration
+//   - aiirr_rVis.txt : Variance ratio of the visisble regions
+//
+// Variables in this macro:
+//  @1  : Minimun area ratio (0.0 to 1.0)
+//  @2  : (reserved)
+//  @3  : (reserved)
+//  @4  : (reserved)
+//  #1  : Number of bootstrap repeats per image [= N]
+//  #2  : Shape no. to use
+//  #4  : Shake amplitude [= d]
+//  #5  : Pre Gaussian    [= n]
+//  #6  : Post Gaussian   [= m] (needed if Shake operation is non-linear)
+//  #7  : Flag for trim (0 or 1) * You can set 0 with pre-trimmed image
+//  #8  : Resize const width * You can set 0 to use original size image
+//  $1  : N of regions
+//  $2  : ratioVis (AII)
+//  $11 : (cummulative) N of regions
+//  $12 : (cummulative) ratioVis
+//
+// Dependencies
+//  AIIRRCore.txt
+//
+
+// This macro
+!(use_local_var)
+!(import, AIIRRCore.txt)
+
+///////////////////////////////////////////
+// Parameters
+@1(0.001)		// Minimun area ratio (0.0 to 1.0)
+@2()			// (reserved)
+@3()			// (reserved)
+@4()			// (reserved)
+#1(100)			// Number of bootstrap repeats per image [= N]
+#2(1)			// Shape no. to use
+#4(25)			// Shake amplitude  [= d]
+#5(20)			// Pre-Gaussian     [= n]
+#6(0)			// Post-Gaussian    [= m]
+#7(1)			// Flag for trim (0 or 1) * You can set 0 with pre-trimmed image
+#8(500)			// Resize const width (or ...laege) * You can set 0 with pre-trimmed image
+
+///////////////////////////////////////////
+// Region selection
+// if you want to extract black regions, 
+// mask.brightness.inverse shold be true
+>(mask.brightness.inverse = true)
+
+////////////////////////////////////////////
+// App settings
+>(LogFileContents = 0 1 2 90)
+>(env.nthread = 0) 					// 0 : Auto
+>(env.use_thread = true)
+>(env.window_layout = 14)
+>(env.cash_mbsize = 100)
+>(color.mask = RGB(0, 0, 0))
+>(color.roi_mask = RGB(255, 255, 255))
+>(silent.log_warning = true)		// Disable warning of !(save_log)
+>(ui.mask_opacity = 50)
+>(ui.window_layout_size = 1862, 1096, 0, 0, 1213, 0, 615, 0, 200, 0, 783, 0, 280, 0, 328, 0)
+>(ui.binwnd_fixsize = true)
+
+////////////////////////////////////////////
+// Preparations
+
+// Make log dir at the place of the current macro file
+@(<-RecentMacroFile) 
+@(/dir)
+>(LogFileDir = @\results)
+@(<-LogFileAbsPath) 
+@(/dir)
+
+// Ask user
+#(/ask, [!]All the previous output in the follwing folder will be cleared. \nAre you OK?\n\n@)
+#(!) 
+!(goif, #, TERMINATE)
+
+// Create the folder if absnt and clean it
+!(cmd, md "@")
+!(cmd, del "@\*.*" /q)
+
+// Fit to window
+!(33304)
+!(mode_points)
+
+// Roll back
+!(reload_shape)
+{!(prev_shape)}(newshape)
+
+// File loop 
+{
+	// Load the image
+	!(sync_img)
+			
+	// Load the shape
+	x(clm)
+	x(stom, #2)
+
+	// Show sigma
+	!(panel, Sigma = #4)
+
+	// Resize the image
+	!(if, #8; 
+		!(recalc)
+		@(<-23)
+		@11(@)@11(/1)
+		@12(@)@12(/3)
+		@(=#8/(@12-@11))
+		!(resize,@)
+	)
+
+	// Trim the region
+	!(if, #7;
+		@(= (#4 + #5 + #6) * 2) // Margin should be larger than 2*(sqrt(n) + d)
+		!(trim, @)
+	)
+	
+	// Show image
+	!(gosub, WAIT_SHOW_1000)
+	
+	// Set mask
+	B(-1, -1, 1) g
+	
+	// Run the analysis
+	!(gosub, MAIN_CALCULATION)
+	
+	// Next shape
+	!(next_shape) 
+	
+}(newshape)
+
+:(END)
+!(/noupd)
+!(dlg, [i]END)
+!(end)
+
+:(TERMINATE)
+!(/noupd)
+!(dlg, [x]Terminated by user)
+!(end)
+
+///////////////////////////////////////////
+// Main calculation
+:(MAIN_CALCULATION)
+
+// Init save data
+$11()
+$12() 
+
+// Backup the current mask
+x(copym, 0, 2)
+
+// PrePARE RUN
+!(/noupd) 
+!(sys_update)
+	
+// Loop for Repeat
+{
+	// No update
+	!(noupd)
+
+	// Restore the mask pattern
+	x(copym, 2, 0)
+		
+	// Skip blur
+	!(if, #1 > 0;
+	
+		// Shift value
+		@10(/randnd) @10(*= #4)					// @10　: d (mean = 0, sd = d) 
+		@11(/rand) @11(*= 3.1415926535)			// @11 : a [0, PI]
+		@12(@11) @12(/cos) @12(*= @10) @12(~)	// @12 : dx = d * cos(a)
+		@13(@11) @13(/sin) @13(*= @10) @13(~)	// @13 : dy = d * sin(a)
+		@14(@12) @14(/=-2) @14(~)				// @14 : -dx / 2
+		@15(@13) @15(/=-2) @15(~)				// @15 : -dy / 2
+	
+		// Make B&W -> Pre-Gaussin image
+		!(if, count==1; 
+
+			// Mask pattern to B/W image
+			c(r,255,255,255)
+			c(m,0,0,0)
+			c(R,127,127,127)
+		
+			// Clear all mask and ROI
+			x(clm)
+			
+			// Pre-Gaussian
+			{[#5] !(33153) }
+			
+			// Show image
+			!(gosub, WAIT_SHOW_1000)
+			
+			// Save to cash
+			!(cashs, img)
+		;
+			// Load from cash
+			!(cashl, img)
+			
+			// Clear all mask and ROI
+			x(clm)
+		)
+
+		// Be sure that ROI was cleared here
+		//!(gosub, DEMO_SHOW_PAUSE)
+
+		// Make a shake image
+		!(35007, 6)					// Copy the original image to ref
+		!(offset, i, @12, @13)		// Shift the original image		
+		x(merge, 0.5)				// Merge two images
+		!(35009, 6)					// Swap the images. Main=merged, Ref=Shifted				
+		//!(gosub, DEMO_SHOW_PAUSE)
+			
+		// Post-Gausian
+		{[#6] !(33153) }
+		
+		// Restore the mask pattern
+		x(copym, 2, 0)
+		
+		// Clip the image with medium shape
+		!(offset, i, @14, @15)		// Half-shift the image	
+		//!(gosub, DEMO_SHOW_PAUSE)
+	
+		// Paint outside of ROI
+		c(R,127,127,127)
+	
+		// Restore the mask pattern
+		x(copym, 2, 0)
+	
+		// Threshold
+		B(-1, -1, 0) g
+	)
+	
+	//!(gosub, DEMO_SHOW_PAUSE)
+			
+	// Run macros
+	$90(@1, @2, @3, @4)			// (MinRatio, (reserved), (reserved), (reserved))
+	!(sync_var; export; $90)
+	!(run, AIIRRCore)
+	!(sync_var; import; $99)
+
+	// Get return values
+	$1($99) $1(/1) 				// $1 : N of regions
+	$2($99) $2(/2)				// $2 : AII (formerly, ratioVis)
+	$3($99) $3(/3)				// $3 : sum_d2_roi
+	$4($99) $4(/4)				// $4 : sum_d2_vis
+	$5($99) $5(/5)				// $5 : sum_d2_each
+		
+	// Show panel
+	@(=count)
+	!(panel, @: n = $1, AII (rVis) = $2)
+
+	// Add logfile data
+	$11($11,$1)					// $11 : += [nRegion]
+	$12($12,$2)					// $12 : += [AII (rVis)]
+	
+	// Show image
+	!(gosub, WAIT_SHOW_10)
+	//!(gosub, DEMO_SHOW_PAUSE)
+			
+	// Avoid infinite loop when #1 == 0
+	!(break, #1 == 0)
+}[#1]
+
+// Output nRegion results
+>(LogFileName = aiirr_n.txt)
+@($11)
+@(/csv_to_tsv)
+@(/trim)
+!(sync_var; export; @)
+!(save_log)
+
+// Output AIIRR results
+>(LogFileName = aiirr_rvis.txt)
+@($12)
+@(/csv_to_tsv)
+@(/trim)
+!(sync_var; export; @)
+!(save_log)
+
+!(return)
+
+//////////////////////////
+:(DEMO_SHOW_PAUSE)
+!(/noupd) 
+!(sys_update)
+!(sys_updsub, 4)
+!(sys_updsub, 6)
+!(dlg, PAUSE)
+!(return)
+
+//////////////////////////
+:(WAIT_SHOW_10)
+!(/noupd) 
+!(sys_update)
+!(sys_updsub, 4)
+!(sys_updsub, 6)
+!(sleep, 10)
+!(return)
+
+//////////////////////////
+:(WAIT_SHOW_1000)
+!(/noupd) 
+!(sys_update)
+!(sys_updsub, 4)
+!(sys_updsub, 6)
+!(sleep, 1000)
+!(return)
