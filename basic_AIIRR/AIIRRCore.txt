@@ -1,0 +1,124 @@
+/////////////////////////////////////////////////////////////
+// AIIRRCore.txt (Sub module for AIIRR.txt)
+//
+//   Version 1.00.0  [8 May 2025]
+//  
+//   Copyright (C) 2025 Masahiko Tanahashi
+//
+//
+// History:
+//   (Relesed versions)
+//   v.1.00.00 [8 May 2025] : Archived in Github/Zenodo
+//   (Prototype versions)
+//    10 Feb 2025 : Command name and parameters were changed (sfd -> aii)	
+//    17 Feb 2024 : Renamed as 'AIIRRCore' and uploaded to the AIIRR website
+//     4 Feb 2024 : Modified for new Natsumushi macro syntax
+//    19 Jun 2023 : Additional comments
+//    20 Apr 2023 : Modified for the improved x(nc) function
+//    20 Dec 2022 : Updated for the new syntax of Natsumushi Macro
+//    09 Jun 2021 : First release
+//
+// Requirements:
+//  * Mask patterns (ROI + mask) are set on the image 
+//
+// Variables in this macro:
+//  @1 : Minimun area ratio (0.0 to 1.0)
+//  @2 : (reserved)
+//  @3 : (reserved)
+//  @4 : (reserved)
+//  @90~ : temporal
+//  #1 : nRegion       = Number of separated areas
+//  #2 : AII           = sum_d2_each / sum_d2_vis, formerly, 'ratioVis'
+//  #3 : sum_d2_roi    = [pca.eigen0 + pca.eigen1] of whole ROI
+//  #4 : sum_d2_vis    = [pca.eigen0 + pca.eigen1] of whole VIS regions
+//  #5 : sum_d2_each   = Sum of [pca.eigen0 + pca.eigen1] of each VIS region
+//  #10 : Minimum region area to pick
+//  #11 : Maximun region area to pick
+//  $1~20 : Colors 
+//
+// Parameters
+//  $90 : Parameters (MinRatio, (reserved), (reserved), (reserved))
+//  $99 : Retuen values (nRegion, AII, sum_d2_roi, sum_d2_vis, sum_d2_each) 
+//
+
+// This macro
+!(nobreak)
+!(use_local_var)
+!(sync_var, import; $90)
+
+// Colors
+$0(0,0,0)
+$1(0,0,255)
+$2(0,255,0)
+$3(255,0,0)
+$4(0,255,255)
+$5(255,0,255)
+$6(255,255,0)
+$7(0,128,255)
+$8(255,0,128)
+$9(128,255,0)
+$10(255,128,0)
+$11(0,255,128)
+$12(128,0,255)
+$13(255,0,128)
+$14(128,255,0)
+$15(0,128,255)
+$16(128,0,0)
+$17(0,128,0)
+$18(0,0,128)
+$19(255,255,255)
+
+// Read parameters ($90)
+@1($90) @1(/1)				// @1 : Minimun area ratio (0.0 to 1.0)
+@2($90) @2(/2) @2(/bool)		// @2 : (reserved)
+@3($90) @3(/3) @3(/bool)		// @3 : (reserved)
+@4($90) @4(/4) @4(/bool) 		// @4 : (reserved)
+
+// Calculate the minimum area size
+!(recalc)
+#10(<-10) 				// #10 : Min region = int(nROI * Minimun area ratio)
+#10(*=@1)
+#10(~)
+#11(<-10)				// #11 :　Max region = nROI 	
+
+// SFD (it internally uses the setting of A macro)
+A(reset)
+A(sort, 2)		// Sort := Descending
+A(area, #10, #11)	// Set area range
+x(aii)	// Output will be stored in env.sys_output like as "AII, 7, 0.34543, ...")
+	//  1st : Tag ('AII')
+	//  2nd : number of regions
+	//  3rd : AII (formerly 'ratioVis') = sum_d2_each / sum_d2_vis
+	//  4th : sum_d2_roi  = [pca.eigen0 + pca.eigen1] of whole ROI
+	//  5th : sum_d2_vis  = [pca.eigen0 + pca.eigen1] of whole VIS regions
+	//  6th : sum_d2_each = Sum of [pca.eigen0 + pca.eigen1] of each vis region
+@(<-env.sys_output)
+
+// Enum regions
+#1(@) #1(/2) 	// #1 : nRegion
+#2(@) #2(/3)	// #2 : AII (ratioVis)
+#3(@) #3(/4)	// #3 : sum_d2_roi
+#4(@) #4(/5)	// #4 : sum_d2_vis
+#5(@) #5(/6)	// #5 : sum_d2_each
+
+$99(#1, #2, #3, #4, #5) // $99 : Return values
+
+// Show shapes
+!(doc_bkup)
+{[#1]
+	// Select #i region and paint in color
+	@(=count)
+	a(@)
+	@(/if, @ > 19; 19)
+	c(r, $[@])
+	!(doc_undo)
+} 
+//!(save, jpg+eils)
+
+:(END)
+A(reset)
+!(sync_var, export; $99)
+!(end)
+
+
+	
