@@ -4,7 +4,7 @@ Area Integrity Index with Random Rearrangement (AIIRR): A new concept for quanti
 
 Masahiko Tanahashi [*1,2], Min-Chen Lin [2], Chung-Ping Lin [*2]
 
-Methods in Ecology and Evolution, in press
+Methods in Ecology and Evolution, 16(8):1781-1795, 2025.
 
 *Correspondending authors
 
