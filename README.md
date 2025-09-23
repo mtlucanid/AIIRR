@@ -8,6 +8,6 @@ Methods in Ecology and Evolution, 16(8):1781-1795, 2025.
 
 *Correspondending authors
 
-[1] Institute of Plant and Microbial Biology, Academia Sinica, No.128, Section 2, Academia Road, Nangang, Taipei 115201, Taiwan, ROC. 
+[1] Institute of Plant and Microbial Biology, Academia Sinica, Taipei, Taiwan. 
 
-[2] Department of Life Science, National Taiwan Normal University, No. 88, Section 4, Tingzhou Road, Taipei 11677, Taiwan, ROC. 
+[2] Department of Life Science, National Taiwan Normal University, Taipei, Taiwan. 
